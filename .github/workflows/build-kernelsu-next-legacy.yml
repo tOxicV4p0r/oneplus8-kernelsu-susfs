@@ -113,87 +113,11 @@ jobs:
       - name: Setup KernelSU-Next Legacy
         run: |
           cd kernel
-          echo "Setting up KernelSU-Next with legacy branch (for non-GKI 4.19 kernels)..."
-
-          # KernelSU-Next has a 'legacy' branch specifically for non-GKI kernels
-          # Clone KernelSU-Next with legacy branch
-          git clone --depth=1 -b legacy https://github.com/KernelSU-Next/KernelSU-Next.git KernelSU
-
-          # Move KernelSU to drivers/kernelsu
-          mkdir -p drivers/kernelsu
-          mv KernelSU/kernel/* drivers/kernelsu/
-          rm -rf KernelSU
-
-          # Add to drivers/Kconfig
-          if ! grep -q "source.*kernelsu/Kconfig" drivers/Kconfig; then
-            sed -i '/endmenu/i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
-          fi
-
-          # Add to drivers/Makefile
-          if ! grep -q "kernelsu" drivers/Makefile; then
-            echo "obj-\$(CONFIG_KSU) += kernelsu/" >> drivers/Makefile
-          fi
-
-          # Tell KernelSU that path_umount is available (we backported it)
-          echo "ccflags-y += -DKSU_UMOUNT" >> drivers/kernelsu/Makefile
-
-          # Fix MODULE_IMPORT_NS for kernel 4.19 (this macro was added in kernel 5.4)
-          echo "Fixing MODULE_IMPORT_NS for kernel 4.19..."
-          for f in drivers/kernelsu/*.c; do
-            if grep -q "MODULE_IMPORT_NS" "$f"; then
-              sed -i '/MODULE_IMPORT_NS/d' "$f"
-              echo "Removed MODULE_IMPORT_NS from $f"
-            fi
-          done
-
-          # Fix TWA_RESUME for kernel 4.19 (task_work API changed in 5.x)
-          echo "Fixing task_work API for kernel 4.19..."
-          for f in drivers/kernelsu/*.c; do
-            if grep -q "TWA_RESUME" "$f"; then
-              sed -i 's/TWA_RESUME/true/g' "$f"
-              echo "Fixed TWA_RESUME in $f"
-            fi
-          done
-
-          # Add missing includes for kernel 4.19
-          echo "Adding missing includes for kernel 4.19..."
-          for f in drivers/kernelsu/*.c; do
-            # Add sched/task.h for put_task_struct if not present
-            if ! grep -q "linux/sched/task.h" "$f"; then
-              if grep -q "#include <linux/sched.h>" "$f"; then
-                sed -i '/#include <linux\/sched.h>/a #include <linux/sched/task.h>' "$f"
-                echo "Added sched/task.h include to $f"
-              else
-                # Add at the beginning of the file
-                sed -i '1i #include <linux/sched/task.h>' "$f"
-                echo "Added sched/task.h at beginning of $f"
-              fi
-            fi
-          done
-
-          # KernelSU-Next legacy adds can_umount to fs/namespace.c during build
-          # We can't fix it before build, so we'll disable -Werror for unused-function
-          # by adding CFLAGS to fs/Makefile
-          echo "Disabling -Werror for unused functions in fs/ to handle can_umount..."
-          echo 'CFLAGS_namespace.o += -Wno-unused-function' >> fs/Makefile
-          echo "Added -Wno-unused-function flag for namespace.c"
-
-          # Fix seccomp filter_count issue for kernel 4.19 (doesn't have filter_count)
-          # The atomic_set line needs to be removed entirely, not just the member replaced
-          echo "Fixing seccomp filter_count for kernel 4.19..."
-          if [ -f "drivers/kernelsu/app_profile.c" ]; then
-            # Remove the entire atomic_set line for filter_count
-            sed -i '/atomic_set.*filter_count/d' drivers/kernelsu/app_profile.c
-            # Also handle any other filter_count references (non-atomic)
-            sed -i 's/current->seccomp\.filter_count/0/g' drivers/kernelsu/app_profile.c
-            echo "Removed atomic_set filter_count and fixed other references in app_profile.c"
-          fi
-
-          # Show KernelSU-Next version
-          echo "=== KernelSU-Next Version ==="
-          cat drivers/kernelsu/Makefile | head -20
-          echo "=== KernelSU source files ==="
-          ls -la drivers/kernelsu/
+          echo "Setting up KernelSU-Next (legacy) via official setup.sh (symlink keeps repo-root uapi/)..."
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/legacy/kernel/setup.sh" | bash -s legacy
+          if [ ! -e drivers/kernelsu ]; then echo "ERROR: KSU-Next legacy setup failed!"; exit 1; fi
+          echo "=== KernelSU-Next integrated (symlink) ==="
+          ls -la drivers/kernelsu/ | head
 
       - name: Check KernelSU Integration
         run: |
@@ -213,10 +137,13 @@ jobs:
       - name: Enable KSU in Config
         run: |
           cd kernel
-          # Enable KernelSU
+          # Enable KernelSU-Next
           scripts/config --file out/.config -e KSU
-
-          # Enable kallsyms for proper symbol resolution (required for non-GKI hooks)
+          # Non-GKI hook: use kprobes (tracepoint+kretprobe), NOT manual hook (no source edits)
+          scripts/config --file out/.config -e KPROBES
+          scripts/config --file out/.config -d KSU_MANUAL_HOOK
+          scripts/config --file out/.config -e KSU_KPROBES_HOOK
+          # kallsyms for symbol resolution
           scripts/config --file out/.config -e KALLSYMS
           scripts/config --file out/.config -e KALLSYMS_ALL
 
