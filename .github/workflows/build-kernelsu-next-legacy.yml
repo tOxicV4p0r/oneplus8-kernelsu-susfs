@@ -70,32 +70,15 @@ jobs:
           # Fix ion_system_heap.c - NR_IONCACHE_PAGES undefined - comment out these checks
           sed -i 's/global_zone_page_state(NR_IONCACHE_PAGES)/0/g' drivers/staging/android/ion/ion_system_heap.c || true
 
-      - name: Backport path_umount and get_cred_rcu (required for older kernels)
+      - name: Kernel 4.19 backports + warning flags
         run: |
           cd kernel
-          # path_umount was added in Linux 5.9, need to backport for 4.19
-          cat >> fs/namespace.c << 'EOFPATCH'
-
-          /* Backport path_umount from Linux 5.9+ for KernelSU */
-          #include <linux/version.h>
-          #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
-          int path_umount(struct path *path, int flags)
-          {
-              struct mount *mnt = real_mount(path->mnt);
-              return do_umount(mnt, flags);
-          }
-          EXPORT_SYMBOL(path_umount);
-          #endif
-          EOFPATCH
-
-          # Add declaration to include/linux/mount.h
-          sed -i '/^extern void mnt_set_expiry/i extern int path_umount(struct path *path, int flags);' include/linux/mount.h
-
-          # Backport get_cred_rcu for kernels that don't have it
+          # KSU-Next legacy adds its OWN can_umount/path_umount to fs/namespace.c; its can_umount is unused in kprobes mode -> silence -Werror
+          echo 'CFLAGS_namespace.o += -Wno-unused-function' >> fs/Makefile
+          # get_cred_rcu is needed by KSU-Next but missing on 4.19 (not in LineageOS src nor KSU compat)
           if ! grep -q "get_cred_rcu" include/linux/cred.h; then
             echo "Adding get_cred_rcu backport..."
             sed -i '/#endif.*_LINUX_CRED_H/i \
-          /* Backport get_cred_rcu for KernelSU */ \
           static inline const struct cred *get_cred_rcu(const struct cred *cred) \
           { \
               struct cred *nonconst_cred = (struct cred *) cred; \
@@ -106,8 +89,6 @@ jobs:
               return cred; \
           }
           ' include/linux/cred.h
-          else
-            echo "get_cred_rcu already exists in kernel, skipping backport"
           fi
 
       - name: Setup KernelSU-Next Legacy
