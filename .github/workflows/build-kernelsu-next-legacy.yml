@@ -9,7 +9,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
 
@@ -117,7 +117,7 @@ jobs:
 
           # KernelSU-Next has a 'legacy' branch specifically for non-GKI kernels
           # Clone KernelSU-Next with legacy branch
-          git clone --depth=1 -b legacy https://github.com/rifsxd/KernelSU-Next.git KernelSU
+          git clone --depth=1 -b legacy https://github.com/KernelSU-Next/KernelSU-Next.git KernelSU
 
           # Move KernelSU to drivers/kernelsu
           mkdir -p drivers/kernelsu
@@ -244,7 +244,7 @@ jobs:
           cd AnyKernel3
           rm -rf .git modules patch ramdisk
           cp ../out/arch/arm64/boot/Image .
-          sed -i 's/do.devicecheck=.*/do.devicecheck=1/g' anykernel.sh
+          sed -i 's/do.devicecheck=.*/do.devicecheck=0/g' anykernel.sh
           sed -i 's/device.name1=.*/device.name1=instantnoodlep/g' anykernel.sh
           sed -i 's|block=.*|block=/dev/block/bootdevice/by-name/boot;|g' anykernel.sh
           sed -i 's/is_slot_device=.*/is_slot_device=1;/g' anykernel.sh
