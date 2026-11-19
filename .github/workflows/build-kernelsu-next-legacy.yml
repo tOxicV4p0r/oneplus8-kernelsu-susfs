@@ -95,7 +95,7 @@ jobs:
         run: |
           cd kernel
           echo "Setting up KernelSU-Next (legacy) via official setup.sh (symlink keeps repo-root uapi/)..."
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/legacy/kernel/setup.sh" | bash -s legacy
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/legacy/kernel/setup.sh" | bash -s e3292239f3b8
           if [ ! -e drivers/kernelsu ]; then echo "ERROR: KSU-Next legacy setup failed!"; exit 1; fi
           echo "=== KernelSU-Next integrated (symlink) ==="
           ls -la drivers/kernelsu/ | head
