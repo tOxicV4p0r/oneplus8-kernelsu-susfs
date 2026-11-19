@@ -237,6 +237,13 @@ jobs:
             patch -p1 --no-backup-if-mismatch -F3 < /tmp/manual_hook.patch || echo "Patch applied with some failures"
           fi
 
+      - name: Strip reboot hook (rsuntk KSU lacks ksu_handle_sys_reboot)
+        run: |
+          cd kernel
+          sed -i '/ksu_handle_sys_reboot/d' kernel/reboot.c
+          echo "reboot.c KSU refs after strip:"
+          grep -n 'ksu_handle\|CONFIG_KSU' kernel/reboot.c | head || true
+
       - name: Use Device Config
         run: |
           cd kernel
